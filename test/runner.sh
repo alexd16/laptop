@@ -3,8 +3,12 @@ message() {
   printf "\e[1;34m:: \e[1;37m%s\e[0m\n" "$*"
 }
 
-failure() {
+failure_message() {
   printf "\n\e[1;31mFAILURE\e[0m: \e[1;37m%s\e[0m\n\n" "$*" >&2;
+}
+
+failure() {
+  failure_message
   continue
 }
 
@@ -13,6 +17,11 @@ vagrant_destroy() {
     vagrant destroy --force
   fi
 }
+
+if ! vagrant -v | grep -qiE 'Vagrant 1.5'; then
+  failure_message 'You must use vagrant >= 1.5.0 to run the test suite.'
+  exit 1
+fi
 
 message "Building latest scripts"
 ./bin/build.sh
