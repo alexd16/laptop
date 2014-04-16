@@ -1,4 +1,8 @@
 #!/usr/bin/env sh
+source ~/.laptop.secrets
+
+FAILED=false
+
 message() {
   printf "\e[1;34m:: \e[1;37m%s\e[0m\n" "$*"
 }
@@ -8,6 +12,7 @@ failure_message() {
 }
 
 failure() {
+  FAILED=true
   failure_message
   continue
 }
@@ -16,6 +21,26 @@ vagrant_destroy() {
   if [ -z "$KEEP_VM" ]; then
     vagrant destroy --force
   fi
+}
+
+publish_box(){
+  LAPTOP_BASENAME=$(echo "$vagrantfile" | cut -d'.' -f2-);
+  VIRTUALBOX_NAME="laptop-$LAPTOP_BASENAME";
+  BOX_NAME="$LAPTOP_BASENAME-with-laptop.box"
+
+  rm -f $BOX_NAME
+
+  message "Creating $BOX_NAME from $VIRTUALBOX_NAME"
+  vagrant package --base $VIRTUALBOX_NAME --output $BOX_NAME
+  message "Done creating $BOX_NAME"
+
+  message "Removing existing box: $BOX_NAME"
+  aws s3 rm s3://laptop-boxes/$BOX_NAME
+
+  message "Uploading box to s3: $BOX_NAME"
+  aws s3 cp $BOX_NAME s3://laptop-boxes/ --grants \
+    read=uri=http://acs.amazonaws.com/groups/global/AllUsers \
+    full=emailaddress=$S3_BOX_OWNER_EMAIL
 }
 
 if ! vagrant -v | grep -qiE 'Vagrant 1.5'; then
@@ -27,6 +52,8 @@ message "Building latest scripts"
 ./bin/build.sh
 
 for vagrantfile in test/Vagrantfile.*; do
+  FAILED=false
+
   message "Testing with $vagrantfile"
 
   ln -sf "$vagrantfile" ./Vagrantfile || failure 'Unable to link Vagrantfile'
@@ -61,7 +88,16 @@ for vagrantfile in test/Vagrantfile.*; do
   vagrant ssh -c 'zsh -i -l -c "cd ~/test_app && rake db:create db:migrate db:test:prepare"' \
     || failure 'Could not successfully initialize databases and migrate'
 
-  message "$vagrantfile tested successfully, shutting down VM"
+  if [ "$FAILED" = true ]; then
+    failure_message "$vagrantfile :: The automated tests failed. Please look for error messages above"
+  else
+    message "$vagrantfile tests succeeded"
+    if [ $PUBLISH_BOXES ]; then
+      message 'publishing box'
+      publish_box
+    fi
+  fi
+
   vagrant halt
   sleep 30
   vagrant_destroy

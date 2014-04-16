@@ -9,10 +9,15 @@ information about OSX testing.
 ## Prerequisites
 
 1. [VirtualBox][]
-2. [Vagrant][]
+2. [Vagrant][] - version >= 1.5.0
+3. [aws-cli][] - optional, for maintainers only.
 
 [VirtualBox]: https://www.virtualbox.org/
 [Vagrant]: http://www.vagrantup.com/
+[aws-cli]: http://docs.aws.amazon.com/cli/latest/userguide/cli-chap-welcome.html
+
+`aws-cli` is only necessary if you're one of the maintainers and want to
+publish new "laptopped" boxes after running tests.
 
 ## Running the tests
 
@@ -70,3 +75,11 @@ to
   auth		sufficient	pam_permit.so
 
 which will allow the vagrant user to change their shell without a password.
+
+## Publishing
+
+When you're ready to publish a new set of boxes with the laptop environment in
+them, run with:
+
+  PUBLISH_BOXES=1 ./test/runner.sh
+
