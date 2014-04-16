@@ -88,6 +88,9 @@ for vagrantfile in test/Vagrantfile.*; do
   vagrant ssh -c 'zsh -i -l -c "cd ~/test_app && rake db:create db:migrate db:test:prepare"' \
     || failure 'Could not successfully initialize databases and migrate'
 
+  vagrant ssh -c 'zsh -i -l -c "rm -Rf ~/test_app"'
+  vagrant ssh -c 'zsh -i -l -c "sudo aptitude clean"'
+
   if [ "$FAILED" = true ]; then
     failure_message "$vagrantfile :: The automated tests failed. Please look for error messages above"
   else
