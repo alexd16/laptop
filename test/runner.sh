@@ -106,4 +106,3 @@ for vagrantfile in test/Vagrantfile.*; do
   vagrant_destroy
   sleep 30
 done
-
