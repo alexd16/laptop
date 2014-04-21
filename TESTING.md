@@ -75,6 +75,7 @@ to
   auth		sufficient	pam_permit.so
 
 which will allow the vagrant user to change their shell without a password.
+You'll need to repackage and re-upload the base box with this change.
 
 ## Publishing
 
@@ -83,3 +84,59 @@ them, run with:
 
   PUBLISH_BOXES=1 ./test/runner.sh
 
+## Creating new base boxes
+
+- Download a 64 bit minimal server ISO
+- Set up a new virtualbox machine, including:
+-- Name it logically: `ubuntu-14-04-server` or similar
+-- 512 meg of RAM
+-- 2 CPUs
+-- 8 gig dynamically allocated disk, choosing the default VDI storage
+
+- Install. During installation:
+-- Create a `vagrant` user with the password "vagrant"
+-- Don't encrypt your home drive
+-- Choose the minimal packages necessary to get a working SSH server
+
+- Reboot. And then follow the [general base box instructions][], specifically:
+-- Log in as the `vagrant` user, 'sudo -i' and then set root's password to 'vagrant'
+-- Modify /etc/sudoers to allow vagrant password-less sudo for everything
+-- Install the vagrant insecure SSH keypair into the `vagrant` account
+-- Set up guest additions according to the [virtualbox provider docs][]. See [this bug in 4.3.10][].
+-- Update and clean up: `aptitude update && aptitude dist-upgrade -y && aptitude clean`
+
+- Package the new minimal base box.
+
+   vagrant package --base ubuntu-14-04-server --output ubuntu-14-04-server.box
+
+- Test the new base box.
+-- Add the box to your local vagrant: `vagrant box add ubuntu-14-04-server.box --name ubuntu-14-04-server`
+-- Create a minimal `Vagrantfile` that uses your new box and ensure it works. 
+-- `vagrant up`
+-- `vagrant ssh`
+-- Make sure you can see shared files under the `/vagrant` directory.
+-- If it works, clean up after yourself:
+
+    vagrant destroy
+    vagrant box remove ubuntu-14-04-server
+
+-- Remove the virtualbox you installed to if you're sure everything works.
+
+- Upload the new base box to s3. Assuming you've got aws-cli installed:
+
+   aws s3 cp ubuntu-14-04-server.box s3://laptop-boxes/ \
+     --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=emailaddress=S3_BOX_OWNER_EMAIL
+
+where `S3_BOX_OWNER_EMAIL` is the email address of the account that should own these boxes.
+
+- Add a new box config to vagrantcloud, named and described logically.
+-- Create a version (0.1.0) and a provider with the s3 URL you created above.
+-- Release the config. It's OK if the box hasn't been uploaded to s3 yet, vagrantcloud issues a 302 when a box is requested.
+
+- Create a Vagrantfile under `test/` that uses the vagrantcloud remote name.
+- Run `test/runner.sh` and see if laptop applied successfully.
+
+[general base box instructions]:http://docs.vagrantup.com/v2/boxes/base.html
+[virtualbox provider docs]:http://docs.vagrantup.com/v2/virtualbox/boxes.html
+-- Add the box to your local vagrant: `vagrant box add ubuntu-14-04-server.box --name ubuntu-14-04-server`
+[this bug in 4.3.10]:https://github.com/dotless-de/vagrant-vbguest/issues/117
